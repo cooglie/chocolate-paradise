@@ -67,6 +67,7 @@ function Index() {
   const [clickLevel, setClickLevel] = useState(0);
   const [pops, setPops] = useState<Pop[]>([]);
   const [pulse, setPulse] = useState(false);
+  const [autoBuy, setAutoBuy] = useState(false);
   const popId = useRef(0);
 
   useEffect(() => {
@@ -79,6 +80,7 @@ function Index() {
         setClickPower(s.clickPower ?? 1);
         setClickLevel(s.clickLevel ?? 0);
         setTotalClicks(s.totalClicks ?? 0);
+        setAutoBuy(s.autoBuy ?? false);
       }
     } catch {}
   }, []);
@@ -87,11 +89,41 @@ function Index() {
     const id = setInterval(() => {
       localStorage.setItem(
         "chocsave",
-        JSON.stringify({ choc, owned, clickPower, clickLevel, totalClicks }),
+        JSON.stringify({ choc, owned, clickPower, clickLevel, totalClicks, autoBuy }),
       );
     }, 3000);
     return () => clearInterval(id);
-  }, [choc, owned, clickPower, clickLevel, totalClicks]);
+  }, [choc, owned, clickPower, clickLevel, totalClicks, autoBuy]);
+
+  // Auto-buy: repeatedly buys the cheapest affordable upgrade
+  useEffect(() => {
+    if (!autoBuy) return;
+    const id = setInterval(() => {
+      setOwned((prevOwned) => {
+        let bestId: string | null = null;
+        let bestCost = Infinity;
+        for (const u of UPGRADES) {
+          const c = costFor(u, prevOwned[u.id] ?? 0);
+          if (c < bestCost) {
+            bestCost = c;
+            bestId = u.id;
+          }
+        }
+        if (!bestId) return prevOwned;
+        let bought = false;
+        setChoc((cur) => {
+          if (cur >= bestCost) {
+            bought = true;
+            return cur - bestCost;
+          }
+          return cur;
+        });
+        if (!bought) return prevOwned;
+        return { ...prevOwned, [bestId]: (prevOwned[bestId] ?? 0) + 1 };
+      });
+    }, 300);
+    return () => clearInterval(id);
+  }, [autoBuy]);
 
   const cps = useMemo(() => {
     let sum = 0;
@@ -142,6 +174,7 @@ function Index() {
     setClickPower(1);
     setClickLevel(0);
     setTotalClicks(0);
+    setAutoBuy(false);
   }
 
   return (
