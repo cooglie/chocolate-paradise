@@ -67,6 +67,7 @@ function Index() {
   const [clickLevel, setClickLevel] = useState(0);
   const [pops, setPops] = useState<Pop[]>([]);
   const [pulse, setPulse] = useState(false);
+  const [autoBuy, setAutoBuy] = useState(false);
   const popId = useRef(0);
 
   useEffect(() => {
@@ -79,6 +80,7 @@ function Index() {
         setClickPower(s.clickPower ?? 1);
         setClickLevel(s.clickLevel ?? 0);
         setTotalClicks(s.totalClicks ?? 0);
+        setAutoBuy(s.autoBuy ?? false);
       }
     } catch {}
   }, []);
@@ -87,11 +89,41 @@ function Index() {
     const id = setInterval(() => {
       localStorage.setItem(
         "chocsave",
-        JSON.stringify({ choc, owned, clickPower, clickLevel, totalClicks }),
+        JSON.stringify({ choc, owned, clickPower, clickLevel, totalClicks, autoBuy }),
       );
     }, 3000);
     return () => clearInterval(id);
-  }, [choc, owned, clickPower, clickLevel, totalClicks]);
+  }, [choc, owned, clickPower, clickLevel, totalClicks, autoBuy]);
+
+  // Auto-buy: repeatedly buys the cheapest affordable upgrade
+  useEffect(() => {
+    if (!autoBuy) return;
+    const id = setInterval(() => {
+      setOwned((prevOwned) => {
+        let bestId: string | null = null;
+        let bestCost = Infinity;
+        for (const u of UPGRADES) {
+          const c = costFor(u, prevOwned[u.id] ?? 0);
+          if (c < bestCost) {
+            bestCost = c;
+            bestId = u.id;
+          }
+        }
+        if (!bestId) return prevOwned;
+        let bought = false;
+        setChoc((cur) => {
+          if (cur >= bestCost) {
+            bought = true;
+            return cur - bestCost;
+          }
+          return cur;
+        });
+        if (!bought) return prevOwned;
+        return { ...prevOwned, [bestId]: (prevOwned[bestId] ?? 0) + 1 };
+      });
+    }, 300);
+    return () => clearInterval(id);
+  }, [autoBuy]);
 
   const cps = useMemo(() => {
     let sum = 0;
@@ -142,6 +174,7 @@ function Index() {
     setClickPower(1);
     setClickLevel(0);
     setTotalClicks(0);
+    setAutoBuy(false);
   }
 
   return (
@@ -276,7 +309,25 @@ function Index() {
               borderColor: "oklch(0.5 0.1 45 / 0.3)",
             }}
           >
-            <h2 className="text-xl font-bold mb-3 px-1">Shop</h2>
+            <div className="flex items-center justify-between mb-3 px-1 gap-2">
+              <h2 className="text-xl font-bold">Shop</h2>
+              <button
+                onClick={() => setAutoBuy((v) => !v)}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors"
+                style={{
+                  background: autoBuy
+                    ? "linear-gradient(180deg, oklch(0.75 0.15 70), oklch(0.55 0.14 55))"
+                    : "oklch(0.2 0.04 35 / 0.6)",
+                  color: autoBuy ? "oklch(0.15 0.05 30)" : "oklch(0.9 0.05 60)",
+                  borderColor: autoBuy
+                    ? "oklch(0.7 0.14 70 / 0.6)"
+                    : "oklch(0.5 0.1 45 / 0.4)",
+                }}
+                aria-pressed={autoBuy}
+              >
+                🤖 Auto-Kauf: {autoBuy ? "AN" : "AUS"}
+              </button>
+            </div>
             <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
               {UPGRADES.map((u) => {
                 const o = owned[u.id] ?? 0;
