@@ -96,31 +96,29 @@ function Index() {
   }, [choc, owned, clickPower, clickLevel, totalClicks, autoBuy]);
 
   // Auto-buy: repeatedly buys the cheapest affordable upgrade
+  const chocRef = useRef(choc);
+  const ownedRef = useRef(owned);
+  chocRef.current = choc;
+  ownedRef.current = owned;
   useEffect(() => {
     if (!autoBuy) return;
     const id = setInterval(() => {
-      setOwned((prevOwned) => {
-        let bestId: string | null = null;
-        let bestCost = Infinity;
-        for (const u of UPGRADES) {
-          const c = costFor(u, prevOwned[u.id] ?? 0);
-          if (c < bestCost) {
-            bestCost = c;
-            bestId = u.id;
-          }
+      const prevOwned = ownedRef.current;
+      let bestId: string | null = null;
+      let bestCost = Infinity;
+      for (const u of UPGRADES) {
+        const c = costFor(u, prevOwned[u.id] ?? 0);
+        if (c < bestCost) {
+          bestCost = c;
+          bestId = u.id;
         }
-        if (!bestId) return prevOwned;
-        let bought = false;
-        setChoc((cur) => {
-          if (cur >= bestCost) {
-            bought = true;
-            return cur - bestCost;
-          }
-          return cur;
-        });
-        if (!bought) return prevOwned;
-        return { ...prevOwned, [bestId]: (prevOwned[bestId] ?? 0) + 1 };
-      });
+      }
+      if (!bestId || chocRef.current < bestCost) return;
+      const next = { ...prevOwned, [bestId]: (prevOwned[bestId] ?? 0) + 1 };
+      chocRef.current -= bestCost;
+      ownedRef.current = next;
+      setChoc((c) => c - bestCost);
+      setOwned(next);
     }, 300);
     return () => clearInterval(id);
   }, [autoBuy]);
